@@ -1,8 +1,17 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from collections import defaultdict
 
 app = FastAPI()
+
+# Configura CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Base de dados de usuários (otimizada como tuplas)
 usuarios = [
@@ -58,6 +67,8 @@ async def home():
         </head>
         <body>
             <h1>API de Usuários RJ</h1>
+            <p>Backend funcionando. Acesse o frontend em:</p>
+            <a href="/frontend.html">Frontend Completo</a>
             <p>Endpoints disponíveis:</p>
             <ul>
                 <li><a href="/usuarios">/usuarios</a> - Todos os usuários</li>
@@ -65,7 +76,6 @@ async def home():
                 <li><a href="/buscar?nome=João">/buscar?nome={nome}</a> - Buscar por nome</li>
                 <li><a href="/histograma-data">/histograma-data</a> - Dados para gráfico (JSON)</li>
             </ul>
-            <p>Acesse o <a href="/frontend.html">Frontend Completo</a> para visualização gráfica.</p>
         </body>
     </html>
     """
@@ -90,7 +100,7 @@ async def buscar_por_nome(nome: str):
 async def histograma_data():
     return contagem_localidades
 
-# Funções para gerenciamento (opcional)
+# Se precisar adicionar/remover usuários dinamicamente:
 def adicionar_usuario(nome: str, localidade: str, telefone: str):
     usuarios.append((nome, localidade, telefone))
     atualizar_cache()

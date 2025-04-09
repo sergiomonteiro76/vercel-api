@@ -13,8 +13,10 @@
             padding: 20px;
             background-color: #f5f5f5;
         }
-        h1, h2 {
+        h1 {
             color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
         }
         .dashboard {
             display: grid;
@@ -27,10 +29,15 @@
             padding: 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
+        .chart-container {
+            height: 400px;
+            margin-top: 20px;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 15px;
+            font-size: 14px;
         }
         th, td {
             padding: 12px 15px;
@@ -42,11 +49,7 @@
             color: white;
         }
         tr:hover {
-            background-color: #f1f1f1;
-        }
-        .chart-container {
-            height: 400px;
-            margin-top: 20px;
+            background-color: #f5f5f5;
         }
         .form-group {
             margin-bottom: 15px;
@@ -55,13 +58,14 @@
             display: block;
             margin-bottom: 5px;
             font-weight: bold;
+            color: #2c3e50;
         }
         input, select, button {
             width: 100%;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            box-sizing: border-box;
+            font-size: 14px;
         }
         button {
             background-color: #3498db;
@@ -70,45 +74,55 @@
             cursor: pointer;
             font-weight: bold;
             margin-top: 5px;
+            transition: background-color 0.3s;
         }
         button:hover {
             background-color: #2980b9;
         }
-        .hidden {
-            display: none;
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+        }
+        .error {
+            color: #e74c3c;
+            padding: 10px;
+            background-color: #fadbd8;
+            border-radius: 4px;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
     <h1>Consulta de Usuários RJ</h1>
-    
+
     <div class="dashboard">
         <div class="panel">
             <h2>Consultas</h2>
-            
+
             <div class="form-group">
                 <button id="btnTodos">Mostrar Todos os Usuários</button>
             </div>
-            
+
             <div class="form-group">
                 <label for="localidade">Filtrar por Localidade:</label>
                 <select id="localidade">
-                    <option value="">Selecione...</option>
+                    <option value="">Selecione uma localidade...</option>
                 </select>
                 <button id="btnLocalidade">Filtrar</button>
             </div>
-            
+
             <div class="form-group">
                 <label for="nome">Buscar por Nome:</label>
                 <input type="text" id="nome" placeholder="Digite parte do nome">
                 <button id="btnNome">Buscar</button>
             </div>
-            
+
             <div id="resultado">
-                <!-- Resultados serão exibidos aqui -->
+                <div class="loading">Selecione uma opção para carregar os dados</div>
             </div>
         </div>
-        
+
         <div class="panel">
             <h2>Distribuição por Localidade</h2>
             <div class="chart-container">
@@ -118,9 +132,9 @@
     </div>
 
     <script>
-        // URL base da API (ajuste para sua URL do Vercel)
+        // URL base da API (usando a mesma origem do frontend)
         const API_URL = window.location.origin;
-        
+
         // Elementos do DOM
         const btnTodos = document.getElementById('btnTodos');
         const btnLocalidade = document.getElementById('btnLocalidade');
@@ -128,7 +142,7 @@
         const selectLocalidade = document.getElementById('localidade');
         const inputNome = document.getElementById('nome');
         const resultadoDiv = document.getElementById('resultado');
-        
+
         // Inicializa o gráfico
         const ctx = document.getElementById('histogramaChart').getContext('2d');
         const chart = new Chart(ctx, {
@@ -146,6 +160,11 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
@@ -156,51 +175,67 @@
                 }
             }
         });
-        
-        // Carrega dados iniciais
+
+        // Mostra estado de carregamento
+        function showLoading() {
+            resultadoDiv.innerHTML = '<div class="loading">Carregando dados...</div>';
+        }
+
+        // Mostra mensagem de erro
+        function showError(message) {
+            resultadoDiv.innerHTML = `<div class="error">Erro: ${message}</div>`;
+        }
+
+        // Carrega dados iniciais (localidades para o dropdown e gráfico)
         async function carregarDadosIniciais() {
             try {
-                // Carrega usuários para preencher o select
+                showLoading();
+
+                // Carrega dados para o gráfico e dropdown
                 const response = await fetch(`${API_URL}/histograma-data`);
+                if (!response.ok) throw new Error('Falha ao carregar dados');
+
                 const data = await response.json();
-                
+
                 // Atualiza gráfico
                 atualizarGrafico(data);
-                
+
                 // Preenche dropdown de localidades
                 preencherLocalidades(data);
-                
+
+                resultadoDiv.innerHTML = '<div class="loading">Selecione uma opção para carregar os dados</div>';
+
             } catch (error) {
+                showError(error.message);
                 console.error('Erro ao carregar dados:', error);
-                resultadoDiv.innerHTML = '<p>Erro ao carregar dados da API</p>';
             }
         }
-        
+
         // Atualiza o gráfico
         function atualizarGrafico(data) {
             chart.data.labels = Object.keys(data);
             chart.data.datasets[0].data = Object.values(data);
             chart.update();
         }
-        
+
         // Preenche o dropdown de localidades
         function preencherLocalidades(data) {
-            selectLocalidade.innerHTML = '<option value="">Selecione...</option>';
-            
-            Object.keys(data).forEach(local => {
+            selectLocalidade.innerHTML = '<option value="">Selecione uma localidade...</option>';
+
+            Object.keys(data).sort().forEach(local => {
                 const option = document.createElement('option');
                 option.value = local;
-                option.textContent = local;
+                option.textContent = `${local} (${data[local]})`;
                 selectLocalidade.appendChild(option);
             });
         }
-        
+
         // Formata usuários para exibição em tabela
         function formatarUsuarios(usuarios) {
             if (usuarios.length === 0) {
-                return '<p>Nenhum usuário encontrado</p>';
+                return '<div class="loading">Nenhum usuário encontrado</div>';
             }
-            
+
             let html = `
                 <table>
                     <thead>
@@ -212,7 +247,7 @@
                     </thead>
                     <tbody>
             `;
-            
+
             usuarios.forEach(user => {
                 html += `
                     <tr>
@@ -222,58 +257,22 @@
                     </tr>
                 `;
             });
-            
+
             html += `
                     </tbody>
                 </table>
-                <p>Total: ${usuarios.length} usuários</p>
+                <p><strong>Total:</strong> ${usuarios.length} usuários</p>
             `;
-            
+
             return html;
         }
-        
+
         // Event Listeners
         btnTodos.addEventListener('click', async () => {
             try {
+                showLoading();
                 const response = await fetch(`${API_URL}/usuarios`);
+                if (!response.ok) throw new Error('Falha ao carregar usuários');
+
                 const data = await response.json();
-                resultadoDiv.innerHTML = formatarUsuarios(data);
-            } catch (error) {
-                resultadoDiv.innerHTML = '<p>Erro ao carregar usuários</p>';
-                console.error(error);
-            }
-        });
-        
-        btnLocalidade.addEventListener('click', async () => {
-            const localidade = selectLocalidade.value;
-            if (!localidade) return;
-            
-            try {
-                const response = await fetch(`${API_URL}/localidade/${encodeURIComponent(localidade)}`);
-                const data = await response.json();
-                resultadoDiv.innerHTML = formatarUsuarios(data);
-            } catch (error) {
-                resultadoDiv.innerHTML = '<p>Erro ao filtrar por localidade</p>';
-                console.error(error);
-            }
-        });
-        
-        btnNome.addEventListener('click', async () => {
-            const nome = inputNome.value.trim();
-            if (!nome) return;
-            
-            try {
-                const response = await fetch(`${API_URL}/buscar?nome=${encodeURIComponent(nome)}`);
-                const data = await response.json();
-                resultadoDiv.innerHTML = formatarUsuarios(data);
-            } catch (error) {
-                resultadoDiv.innerHTML = '<p>Erro ao buscar por nome</p>';
-                console.error(error);
-            }
-        });
-        
-        // Carrega dados ao iniciar
-        carregarDadosIniciais();
-    </script>
-</body>
-</html>
+                resultadoDiv.innerHTML = formatarUsuarios
