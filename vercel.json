@@ -3,16 +3,24 @@
   "builds": [
     {
       "src": "main.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "250mb",
-        "includeFiles": ["requirements.txt"]
-      }
+      "use": "@vercel/python"
+    },
+    {
+      "src": "frontend.html",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/",
+      "dest": "main.py"
+    },
+    {
+      "src": "/frontend.html",
+      "dest": "frontend.html"
+    },
+    {
+      "src": "/api/(.*)",
       "dest": "main.py"
     }
   ]

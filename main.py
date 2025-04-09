@@ -1,10 +1,5 @@
-from fastapi import FastAPI, Response
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
-import io
-import matplotlib
-
-matplotlib.use('Agg')  # Configura backend sem GUI
-import matplotlib.pyplot as plt
 from collections import defaultdict
 
 app = FastAPI()
@@ -36,7 +31,6 @@ usuarios = [
 # Cache para contagem de localidades
 contagem_localidades = None
 
-
 def atualizar_cache():
     global contagem_localidades
     contagem = defaultdict(int)
@@ -44,10 +38,8 @@ def atualizar_cache():
         contagem[localidade] += 1
     contagem_localidades = dict(contagem)
 
-
 # Atualiza cache na inicialização
 atualizar_cache()
-
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
@@ -71,18 +63,16 @@ async def home():
                 <li><a href="/usuarios">/usuarios</a> - Todos os usuários</li>
                 <li><a href="/localidade/Ipanema">/localidade/{nome}</a> - Filtrar por localidade</li>
                 <li><a href="/buscar?nome=João">/buscar?nome={nome}</a> - Buscar por nome</li>
-                <li><a href="/histograma">/histograma</a> - Gráfico de distribuição</li>
                 <li><a href="/histograma-data">/histograma-data</a> - Dados para gráfico (JSON)</li>
             </ul>
+            <p>Acesse o <a href="/frontend.html">Frontend Completo</a> para visualização gráfica.</p>
         </body>
     </html>
     """
 
-
 @app.get("/usuarios", response_class=JSONResponse)
 async def listar_usuarios():
     return [{"nome": nome, "localidade": loc, "telefone": tel} for nome, loc, tel in usuarios]
-
 
 @app.get("/localidade/{local}", response_class=JSONResponse)
 async def filtrar_localidade(local: str):
@@ -90,46 +80,20 @@ async def filtrar_localidade(local: str):
     return [{"nome": nome, "localidade": loc, "telefone": tel}
             for nome, loc, tel in usuarios if loc.lower() == local_lower]
 
-
 @app.get("/buscar", response_class=JSONResponse)
 async def buscar_por_nome(nome: str):
     nome_lower = nome.lower()
     return [{"nome": nome, "localidade": loc, "telefone": tel}
             for nome, loc, tel in usuarios if nome_lower in nome.lower()]
 
-
 @app.get("/histograma-data", response_class=JSONResponse)
 async def histograma_data():
     return contagem_localidades
 
-
-@app.get("/histograma")
-async def histograma():
-    # Configurações otimizadas para reduzir tamanho da imagem
-    plt.figure(figsize=(8, 4))
-    plt.bar(contagem_localidades.keys(), contagem_localidades.values(),
-            color='skyblue', width=0.6)
-
-    plt.title('Distribuição de Usuários por Localidade', fontsize=10)
-    plt.xlabel('Localidade', fontsize=8)
-    plt.ylabel('Quantidade', fontsize=8)
-    plt.xticks(rotation=45, fontsize=7)
-    plt.yticks(fontsize=7)
-    plt.tight_layout()
-
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=70, quality=50, optimize=True)
-    plt.close()
-    buf.seek(0)
-
-    return Response(content=buf.getvalue(), media_type="image/png")
-
-
-# Se precisar adicionar/remover usuários dinamicamente:
+# Funções para gerenciamento (opcional)
 def adicionar_usuario(nome: str, localidade: str, telefone: str):
     usuarios.append((nome, localidade, telefone))
     atualizar_cache()
-
 
 def remover_usuario(nome: str):
     global usuarios
