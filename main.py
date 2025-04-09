@@ -1,11 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.responses import HTMLResponse, JSONResponse
-import pandas as pd
-import matplotlib.pyplot as plt
 import io
-from typing import List
+import matplotlib
+matplotlib.use('Agg')  # Configura backend sem GUI
+import matplotlib.pyplot as plt
 
 app = FastAPI()
+
 
 # Base de dados de usuários
 usuarios = [
@@ -65,13 +66,14 @@ async def buscar_por_nome(nome: str):
     return [user for user in usuarios if nome.lower() in user["nome"].lower()]
 
 
-@app.get("/histograma")
-async def gerar_histograma():
-    df = pd.DataFrame(usuarios)
-    contagem = df['localidade'].value_counts()
+def gerar_histograma_mem():
+    from collections import defaultdict
+    contagem = defaultdict(int)
+    for user in usuarios:
+        contagem[user["localidade"]] += 1
 
     plt.figure(figsize=(10, 6))
-    contagem.plot(kind='bar', color='skyblue')
+    plt.bar(contagem.keys(), contagem.values(), color='skyblue')
     plt.title('Distribuição de Usuários por Localidade')
     plt.xlabel('Localidade')
     plt.ylabel('Quantidade')
@@ -79,8 +81,13 @@ async def gerar_histograma():
     plt.tight_layout()
 
     buf = io.BytesIO()
-    plt.savefig(buf, format='png')
+    plt.savefig(buf, format='png', dpi=80)  # Reduz qualidade
     plt.close()
     buf.seek(0)
+    return buf
 
+
+@app.get("/histograma")
+async def histograma():
+    buf = gerar_histograma_mem()
     return Response(content=buf.getvalue(), media_type="image/png")
