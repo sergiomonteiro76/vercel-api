@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta de Usuários RJ</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+        }
+        .panel {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .chart-container {
+            height: 400px;
+            margin-top: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Consulta de Usuários RJ</h1>
+    
+    <div class="dashboard">
+        <div class="panel">
+            <h2>Consultas</h2>
+            
+            <div class="form-group">
+                <button id="btnTodos">Mostrar Todos os Usuários</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="localidade">Filtrar por Localidade:</label>
+                <select id="localidade">
+                    <option value="">Selecione...</option>
+                </select>
+                <button id="btnLocalidade">Filtrar</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="nome">Buscar por Nome:</label>
+                <input type="text" id="nome" placeholder="Digite parte do nome">
+                <button id="btnNome">Buscar</button>
+            </div>
+            
+            <div id="resultado">
+                <!-- Resultados serão exibidos aqui -->
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Distribuição por Localidade</h2>
+            <div class="chart-container">
+                <canvas id="histogramaChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // URL base da API (ajuste para sua URL do Vercel)
+        const API_URL = window.location.origin;
+        
+        // Elementos do DOM
+        const btnTodos = document.getElementById('btnTodos');
+        const btnLocalidade = document.getElementById('btnLocalidade');
+        const btnNome = document.getElementById('btnNome');
+        const selectLocalidade = document.getElementById('localidade');
+        const inputNome = document.getElementById('nome');
+        const resultadoDiv = document.getElementById('resultado');
+        
+        // Inicializa o gráfico
+        const ctx = document.getElementById('histogramaChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Quantidade de Usuários',
+                    data: [],
+                    backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                    borderColor: 'rgba(52, 152, 219, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Carrega dados iniciais
+        async function carregarDadosIniciais() {
+            try {
+                // Carrega usuários para preencher o select
+                const response = await fetch(`${API_URL}/histograma-data`);
+                const data = await response.json();
+                
+                // Atualiza gráfico
+                atualizarGrafico(data);
+                
+                // Preenche dropdown de localidades
+                preencherLocalidades(data);
+                
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+                resultadoDiv.innerHTML = '<p>Erro ao carregar dados da API</p>';
+            }
+        }
+        
+        // Atualiza o gráfico
+        function atualizarGrafico(data) {
+            chart.data.labels = Object.keys(data);
+            chart.data.datasets[0].data = Object.values(data);
+            chart.update();
+        }
+        
+        // Preenche o dropdown de localidades
+        function preencherLocalidades(data) {
+            selectLocalidade.innerHTML = '<option value="">Selecione...</option>';
+            
+            Object.keys(data).forEach(local => {
+                const option = document.createElement('option');
+                option.value = local;
+                option.textContent = local;
+                selectLocalidade.appendChild(option);
+            });
+        }
+        
+        // Formata usuários para exibição em tabela
+        function formatarUsuarios(usuarios) {
+            if (usuarios.length === 0) {
+                return '<p>Nenhum usuário encontrado</p>';
+            }
+            
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Localidade</th>
+                            <th>Telefone</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            usuarios.forEach(user => {
+                html += `
+                    <tr>
+                        <td>${user.nome}</td>
+                        <td>${user.localidade}</td>
+                        <td>${user.telefone}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                    </tbody>
+                </table>
+                <p>Total: ${usuarios.length} usuários</p>
+            `;
+            
+            return html;
+        }
+        
+        // Event Listeners
+        btnTodos.addEventListener('click', async () => {
+            try {
+                const response = await fetch(`${API_URL}/usuarios`);
+                const data = await response.json();
+                resultadoDiv.innerHTML = formatarUsuarios(data);
+            } catch (error) {
+                resultadoDiv.innerHTML = '<p>Erro ao carregar usuários</p>';
+                console.error(error);
+            }
+        });
+        
+        btnLocalidade.addEventListener('click', async () => {
+            const localidade = selectLocalidade.value;
+            if (!localidade) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/localidade/${encodeURIComponent(localidade)}`);
+                const data = await response.json();
+                resultadoDiv.innerHTML = formatarUsuarios(data);
+            } catch (error) {
+                resultadoDiv.innerHTML = '<p>Erro ao filtrar por localidade</p>';
+                console.error(error);
+            }
+        });
+        
+        btnNome.addEventListener('click', async () => {
+            const nome = inputNome.value.trim();
+            if (!nome) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/buscar?nome=${encodeURIComponent(nome)}`);
+                const data = await response.json();
+                resultadoDiv.innerHTML = formatarUsuarios(data);
+            } catch (error) {
+                resultadoDiv.innerHTML = '<p>Erro ao buscar por nome</p>';
+                console.error(error);
+            }
+        });
+        
+        // Carrega dados ao iniciar
+        carregarDadosIniciais();
+    </script>
+</body>
+</html>
