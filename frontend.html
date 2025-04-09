@@ -82,28 +82,55 @@
         .loading {
             text-align: center;
             padding: 20px;
-            color: #7f8c8d;
+            color: #555;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         .error {
             color: #e74c3c;
-            padding: 10px;
+            padding: 15px;
             background-color: #fadbd8;
             border-radius: 4px;
             margin-top: 10px;
+            text-align: center;
+        }
+        .error button {
+            background-color: #e74c3c;
+            margin-top: 10px;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        .summary {
+            margin-top: 10px;
+            font-weight: bold;
+            text-align: right;
+            color: #2c3e50;
         }
     </style>
 </head>
 <body>
     <h1>Consulta de Usuários RJ</h1>
-
+    
     <div class="dashboard">
         <div class="panel">
             <h2>Consultas</h2>
-
+            
             <div class="form-group">
                 <button id="btnTodos">Mostrar Todos os Usuários</button>
             </div>
-
+            
             <div class="form-group">
                 <label for="localidade">Filtrar por Localidade:</label>
                 <select id="localidade">
@@ -111,18 +138,21 @@
                 </select>
                 <button id="btnLocalidade">Filtrar</button>
             </div>
-
+            
             <div class="form-group">
                 <label for="nome">Buscar por Nome:</label>
                 <input type="text" id="nome" placeholder="Digite parte do nome">
                 <button id="btnNome">Buscar</button>
             </div>
-
+            
             <div id="resultado">
-                <div class="loading">Selecione uma opção para carregar os dados</div>
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>Carregando interface...</p>
+                </div>
             </div>
         </div>
-
+        
         <div class="panel">
             <h2>Distribuição por Localidade</h2>
             <div class="chart-container">
@@ -132,147 +162,202 @@
     </div>
 
     <script>
-        // URL base da API (usando a mesma origem do frontend)
+        // Configurações globais
         const API_URL = window.location.origin;
+        let chart;
+        
+        // Inicialização quando o DOM estiver pronto
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeChart();
+            loadInitialData();
+            setupEventListeners();
+        });
 
-        // Elementos do DOM
-        const btnTodos = document.getElementById('btnTodos');
-        const btnLocalidade = document.getElementById('btnLocalidade');
-        const btnNome = document.getElementById('btnNome');
-        const selectLocalidade = document.getElementById('localidade');
-        const inputNome = document.getElementById('nome');
-        const resultadoDiv = document.getElementById('resultado');
-
-        // Inicializa o gráfico
-        const ctx = document.getElementById('histogramaChart').getContext('2d');
-        const chart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Quantidade de Usuários',
-                    data: [],
-                    backgroundColor: 'rgba(52, 152, 219, 0.7)',
-                    borderColor: 'rgba(52, 152, 219, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
+        function initializeChart() {
+            const ctx = document.getElementById('histogramaChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Usuários por Localidade',
+                        data: [],
+                        backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 1
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
                         }
                     }
                 }
-            }
-        });
-
-        // Mostra estado de carregamento
-        function showLoading() {
-            resultadoDiv.innerHTML = '<div class="loading">Carregando dados...</div>';
+            });
         }
 
-        // Mostra mensagem de erro
-        function showError(message) {
-            resultadoDiv.innerHTML = `<div class="error">Erro: ${message}</div>`;
-        }
-
-        // Carrega dados iniciais (localidades para o dropdown e gráfico)
-        async function carregarDadosIniciais() {
+        async function loadInitialData() {
             try {
-                showLoading();
-
-                // Carrega dados para o gráfico e dropdown
+                showLoading('Carregando dados iniciais...');
+                
+                // Carrega dados do histograma
                 const response = await fetch(`${API_URL}/histograma-data`);
-                if (!response.ok) throw new Error('Falha ao carregar dados');
-
+                if (!response.ok) throw new Error('Erro ao carregar dados');
+                
                 const data = await response.json();
+                updateChart(data);
+                populateLocationDropdown(data);
+                
+                showContentReady();
+            } catch (error) {
+                showError(`Falha ao carregar: ${error.message}`);
+                console.error("Erro:", error);
+            }
+        }
 
-                // Atualiza gráfico
-                atualizarGrafico(data);
+        function setupEventListeners() {
+            document.getElementById('btnTodos').addEventListener('click', loadAllUsers);
+            document.getElementById('btnLocalidade').addEventListener('click', filterByLocation);
+            document.getElementById('btnNome').addEventListener('click', searchByName);
+        }
 
-                // Preenche dropdown de localidades
-                preencherLocalidades(data);
-
-                resultadoDiv.innerHTML = '<div class="loading">Selecione uma opção para carregar os dados</div>';
-
+        async function loadAllUsers() {
+            try {
+                showLoading('Carregando todos os usuários...');
+                const response = await fetch(`${API_URL}/usuarios`);
+                if (!response.ok) throw new Error('Erro na requisição');
+                
+                const data = await response.json();
+                displayUsers(data);
             } catch (error) {
                 showError(error.message);
-                console.error('Erro ao carregar dados:', error);
             }
         }
 
-        // Atualiza o gráfico
-        function atualizarGrafico(data) {
+        async function filterByLocation() {
+            const location = document.getElementById('localidade').value;
+            if (!location) return showError('Selecione uma localidade');
+            
+            try {
+                showLoading(`Filtrando por ${location.split(' ')[0]}...`);
+                const response = await fetch(`${API_URL}/localidade/${encodeURIComponent(location.split(' ')[0])}`);
+                if (!response.ok) throw new Error('Localidade não encontrada');
+                
+                const data = await response.json();
+                displayUsers(data);
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function searchByName() {
+            const name = document.getElementById('nome').value.trim();
+            if (!name) return showError('Digite um nome para buscar');
+            
+            try {
+                showLoading(`Buscando por "${name}"...`);
+                const response = await fetch(`${API_URL}/buscar?nome=${encodeURIComponent(name)}`);
+                if (!response.ok) throw new Error('Busca falhou');
+                
+                const data = await response.json();
+                displayUsers(data);
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        // Funções auxiliares
+        function updateChart(data) {
             chart.data.labels = Object.keys(data);
             chart.data.datasets[0].data = Object.values(data);
             chart.update();
         }
 
-        // Preenche o dropdown de localidades
-        function preencherLocalidades(data) {
-            selectLocalidade.innerHTML = '<option value="">Selecione uma localidade...</option>';
-
-            Object.keys(data).sort().forEach(local => {
-                const option = document.createElement('option');
-                option.value = local;
-                option.textContent = `${local} (${data[local]})`;
-                selectLocalidade.appendChild(option);
-            });
+        function populateLocationDropdown(data) {
+            const select = document.getElementById('localidade');
+            select.innerHTML = '<option value="">Selecione uma localidade...</option>';
+            
+            Object.entries(data)
+                .sort((a, b) => b[1] - a[1])
+                .forEach(([location, count]) => {
+                    const option = document.createElement('option');
+                    option.value = `${location} (${count})`;
+                    option.textContent = `${location} (${count} usuários)`;
+                    select.appendChild(option);
+                });
         }
 
-        // Formata usuários para exibição em tabela
-        function formatarUsuarios(usuarios) {
-            if (usuarios.length === 0) {
-                return '<div class="loading">Nenhum usuário encontrado</div>';
+        function displayUsers(users) {
+            const container = document.getElementById('resultado');
+            
+            if (!users || users.length === 0) {
+                container.innerHTML = '<div class="error">Nenhum usuário encontrado</div>';
+                return;
             }
 
-            let html = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>Localidade</th>
-                            <th>Telefone</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            const html = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Localidade</th>
+                                <th>Telefone</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${users.map(user => `
+                                <tr>
+                                    <td>${user.nome}</td>
+                                    <td>${user.localidade}</td>
+                                    <td>${user.telefone}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary">Total: ${users.length} usuários</div>
+                </div>
             `;
-
-            usuarios.forEach(user => {
-                html += `
-                    <tr>
-                        <td>${user.nome}</td>
-                        <td>${user.localidade}</td>
-                        <td>${user.telefone}</td>
-                    </tr>
-                `;
-            });
-
-            html += `
-                    </tbody>
-                </table>
-                <p><strong>Total:</strong> ${usuarios.length} usuários</p>
-            `;
-
-            return html;
+            
+            container.innerHTML = html;
         }
 
-        // Event Listeners
-        btnTodos.addEventListener('click', async () => {
-            try {
-                showLoading();
-                const response = await fetch(`${API_URL}/usuarios`);
-                if (!response.ok) throw new Error('Falha ao carregar usuários');
+        function showLoading(message) {
+            document.getElementById('resultado').innerHTML = `
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
 
-                const data = await response.json();
-                resultadoDiv.innerHTML = formatarUsuarios
+        function showContentReady() {
+            document.getElementById('resultado').innerHTML = `
+                <div class="loading">
+                    <p>Selecione uma opção para carregar os dados</p>
+                </div>
+            `;
+        }
+
+        function showError(message) {
+            document.getElementById('resultado').innerHTML = `
+                <div class="error">
+                    <p>${message}</p>
+                    <button onclick="location.reload()">Tentar novamente</button>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
